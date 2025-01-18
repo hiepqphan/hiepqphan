@@ -1,0 +1,164 @@
+<head>
+	<title>My Rainbow Tap</title>
+	<meta description="Rainbow with keyboard tap"/>
+	<meta publisher="Hiep Phan" />
+</head>
+	
+<body style="margin: 0 !important; padding: 0 !important;">
+	<canvas id="signalRgbCanvas"></canvas>
+</body>
+	
+<script>
+	var c = document.getElementById("signalRgbCanvas");
+	var ctx = c.getContext("2d");
+  
+	var width = window.innerWidth;
+	var height = window.innerHeight;
+	c.width = width;
+	c.height = height;
+	const numCols = 9;
+	const numRows = 6;
+	const zoneWidth = width / numCols;
+	const zoneHeight = height / numRows;
+	const tailLum = 10;
+
+	let effects = new Map();
+
+	const backgroundColorPicker1 = "#FF5000";
+	const backgroundColorPicker2 = "#FF9600";
+	const backgroundColorPicker3 = "#FFE500";
+	const backgroundColorPicker4 = "#C8FF00";
+	const backgroundColorPicker5 = "#00FFB4";
+	const backgroundColorPicker6 = "#3C3CFF";
+	const ringSize = 15;
+	const ringSpeed = 8;
+	const waveSpeed = 1;
+	const rainFreq = 1;
+	const rainSpeed = 16;
+
+	// Util functions
+	function modifyColor(original, hue, sat, lum) {
+		return "hsl(from " + original + " " + hue + " " + sat + " "  + lum + ")";
+	}
+
+	function randInt(min, max) {
+		return Math.floor(Math.random() * (max + 1)) + min;
+	}
+
+	// Effects
+	function Circle(tappedX, tappedY) {
+		this.name = "Circle";
+		this.radius = 0;
+		this.x = tappedX;
+		this.y = tappedY;
+		this.zone = Math.floor(tappedY / zoneHeight);
+		this.draw = function(speed, size, blockColors) {
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+			ctx.strokeStyle = blockColors[this.zone];
+			ctx.lineWidth = size;
+			ctx.stroke();
+			this.radius += speed;
+		}
+
+		this.expired = function() {
+			return this.radius > width*1.5;
+		}
+
+		return this;
+	}
+
+	function Wave(x, y, effectHeight) {
+		this.name = "Wave";
+		this.originalX = x;
+		this.originalY = y;
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = effectHeight;
+
+		this.draw = function(speed, size, blockColors) {
+			var gradient = ctx.createLinearGradient(this.width / 2, this.y, this.width / 2, this.y + this.height);
+			for (var i = 0; i < blockColors.length*3; ++i) {
+				gradient.addColorStop(1/(blockColors.length*3)*i, blockColors[i % blockColors.length]);
+			}
+			ctx.fillStyle = gradient;
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+
+			// Move object
+			this.y += speed;
+			if (this.y >= this.originalY + height) this.y = this.originalY;
+		}
+
+		this.expired = function() { return false; }
+
+		return this;
+	}
+
+	function Droplet() {
+		this.name = "Droplet";
+		this.width = zoneHeight;
+		this.height = randInt(zoneHeight*2, zoneHeight*3);
+		this.x = randInt(0, width);
+		this.y = -this.height;
+
+		this.draw = function(speed) {
+			var gradient = ctx.createLinearGradient((this.x + this.width) / 2, this.y, (this.x + this.width) / 2, this.y + this.height);
+			gradient.addColorStop(0, "rgb(255 255 255 / 0.01");
+			gradient.addColorStop(1, "rgb(255 255 255 / 1");
+			ctx.fillStyle = gradient;
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+
+			// Move object
+			this.y += speed;
+		}
+
+		this.expired = function() { return this.y > height; }
+
+		return this;
+	}
+
+	// Add wave effects
+	effects.set(crypto.randomUUID(), new Wave(0, -height, height*3));
+
+	function spawnDroplet(freq) {
+		var condition = Math.random();
+		if (condition <= freq/400)
+			effects.set(crypto.randomUUID(), new Droplet());
+	}
+
+	function onCanvasTapped(x, y) {
+		if (effects.size < 100) {
+			effects.set(crypto.randomUUID(), new Circle(x, y));
+		}
+	}
+
+	function update() {
+		// Paint background
+		var blockColors = [backgroundColorPicker1, backgroundColorPicker2, backgroundColorPicker3, backgroundColorPicker4, backgroundColorPicker5, backgroundColorPicker6];
+		ctx.fillStyle = "hsl(from white h s " + tailLum + "%)";
+		ctx.fillRect(0, 0, width, height);
+
+		spawnDroplet(rainFreq);
+
+	    let expiredEffects = [];
+	    effects.forEach((effect, key, map) => {
+	    	if (effect.name == "Circle")
+		    	effect.draw(ringSpeed / 4, ringSize, blockColors);
+		    else if (effect.name == "Wave")
+		    	effect.draw(waveSpeed / 4, 0, blockColors);
+		    else if (effect.name == "Droplet")
+		    	effect.draw(rainSpeed / 4);
+
+	    	if (effect.expired())
+	    		expiredEffects.push(key);
+	    });
+	    expiredEffects.forEach((key) => {
+	    	effects.delete(key);
+	    });
+
+	  window.requestAnimationFrame(update);
+	}
+
+	window.requestAnimationFrame(update);
+</script>
